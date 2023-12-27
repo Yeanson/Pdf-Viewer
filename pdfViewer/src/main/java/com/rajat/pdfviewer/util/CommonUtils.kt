@@ -3,7 +3,10 @@ package com.rajat.pdfviewer.util
 import android.app.ActivityManager
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Matrix
+import android.graphics.Paint
 import android.graphics.pdf.PdfRenderer
 import java.util.*
 
@@ -54,6 +57,21 @@ class CommonUtils {
                         }
                     }
                 }
+            }
+
+            fun copyBitmap(sourceBitmap: Bitmap, targetBitmap: Bitmap) {
+                // 创建一个 Canvas 对象，将目标 Bitmap 的内容绘制到该 Canvas 上
+                val canvas = Canvas(targetBitmap)
+                // 创建一个 Matrix 对象，用于处理缩放和平移操作
+                val matrix = Matrix()
+                // 计算缩放比例
+                val scaleX = targetBitmap.width.toFloat() / sourceBitmap.width
+                val scaleY = targetBitmap.height.toFloat() / sourceBitmap.height
+                // 设置 Matrix 进行缩放操作
+                matrix.postScale(scaleX, scaleY)
+
+                // 使用 Matrix 将源 Bitmap 的内容绘制到目标 Bitmap 上
+                canvas.drawBitmap(sourceBitmap, matrix, Paint())
             }
         }
 

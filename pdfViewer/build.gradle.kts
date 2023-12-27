@@ -74,6 +74,9 @@ dependencies {
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
     implementation("androidx.activity:activity-compose:1.8.1")
+
+    // PDFBOX-ANDROID
+    implementation("com.tom-roush:pdfbox-android:2.0.25.0")
 }
 
 publishing {

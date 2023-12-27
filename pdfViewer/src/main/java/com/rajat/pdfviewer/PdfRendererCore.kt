@@ -1,7 +1,7 @@
     package com.rajat.pdfviewer
 
+    import android.annotation.SuppressLint
     import android.annotation.TargetApi
-    import android.app.ActivityManager
     import android.content.Context
     import android.graphics.Bitmap
     import android.graphics.Bitmap.CompressFormat
@@ -15,29 +15,42 @@
     import android.util.Size
     import com.rajat.pdfviewer.util.CommonUtils
     import com.rajat.pdfviewer.util.CommonUtils.Companion.calculateDynamicPrefetchCount
+    import com.tom_roush.pdfbox.android.PDFBoxResourceLoader
+    import com.tom_roush.pdfbox.pdmodel.PDDocument
+    import com.tom_roush.pdfbox.rendering.ImageType
+    import com.tom_roush.pdfbox.rendering.PDFRenderer
     import kotlinx.coroutines.*
     import java.io.File
     import java.io.FileOutputStream
     import java.nio.file.Files
     import java.nio.file.Paths
 
+
     /**
      * Created by Rajat on 11,July,2020
      */
 
+    @SuppressLint("ObsoleteSdkInt")
     @TargetApi(Build.VERSION_CODES.LOLLIPOP)
     internal class PdfRendererCore(
         private val context: Context,
+        private val renderType: RenderType,
         pdfFile: File
     ) {
         companion object {
             private const val CACHE_PATH = "___pdf___cache___"
         }
 
+        //pdf-box
+        private lateinit var pdfboxDocument: PDDocument
+        private lateinit var pdfboxRenderer: PDFRenderer
+        private lateinit var tempBitmap: Bitmap
+
         private var pdfRenderer: PdfRenderer? = null
         private val memoryCache: LruCache<Int, Bitmap>
 
         init {
+            PDFBoxResourceLoader.init(context)
             val maxMemory = (Runtime.getRuntime().maxMemory() / 1024).toInt() // in KB
             val cacheSize = maxMemory / 8 // Use 1/8th of available memory for cache
             memoryCache = object : LruCache<Int, Bitmap>(cacheSize) {
@@ -97,7 +110,7 @@
                 try {
                     val savePath = File(File(context.cacheDir, CACHE_PATH), pageNo.toString())
                     FileOutputStream(savePath).use { fos ->
-                        bitmap.compress(CompressFormat.JPEG, 75, fos) // Compress as JPEG
+                        bitmap.compress(CompressFormat.JPEG, 100, fos) // Compress as JPEG
                     }
                 } catch (e: Exception) {
                     Log.e("PdfRendererCore", "Error writing bitmap to cache: ${e.message}")
@@ -130,6 +143,11 @@
         private fun openPdfFile(pdfFile: File) {
             val fileDescriptor = ParcelFileDescriptor.open(pdfFile, ParcelFileDescriptor.MODE_READ_ONLY)
             pdfRenderer = PdfRenderer(fileDescriptor)
+
+            if (renderType == RenderType.PDFBOX) {
+                pdfboxDocument = PDDocument.load(pdfFile)
+                pdfboxRenderer = PDFRenderer(pdfboxDocument)
+            }
         }
 
         fun getPageCount(): Int = pdfRenderer?.pageCount ?: 0
@@ -147,8 +165,13 @@
                 synchronized(this@PdfRendererCore) {
                     pdfRenderer?.openPage(pageNo)?.use { pdfPage ->
                         try {
-                            bitmap.eraseColor(Color.WHITE) // Clear the bitmap with white color
-                            pdfPage.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+                            if (renderType == RenderType.PDFBOX) {
+                                tempBitmap = pdfboxRenderer.renderImage(pageNo, 2F, ImageType.RGB)
+                                CommonUtils.Companion.BitmapPool.copyBitmap(tempBitmap, bitmap)
+                            }else {
+                                bitmap.eraseColor(Color.WHITE) // Clear the bitmap with white color
+                                pdfPage.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+                            }
                             addBitmapToMemoryCache(pageNo, bitmap)
                             CoroutineScope(Dispatchers.IO).launch { writeBitmapToCache(pageNo, bitmap) }
                             CoroutineScope(Dispatchers.Main).launch { onBitmapReady?.invoke(true, pageNo, bitmap) }

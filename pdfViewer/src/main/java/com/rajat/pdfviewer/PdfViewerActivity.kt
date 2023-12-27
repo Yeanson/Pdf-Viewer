@@ -73,6 +73,7 @@ class PdfViewerActivity : AppCompatActivity() {
         var isPDFFromPath = false
         var isFromAssets = false
         var SAVE_TO_DOWNLOADS = true
+        var renderType = RenderType.PDFRENDERER
 
         fun launchPdfFromUrl(
             context: Context?,
@@ -92,6 +93,26 @@ class PdfViewerActivity : AppCompatActivity() {
             return intent
         }
 
+        fun launchPdfFromUrl(
+            context: Context?,
+            pdfUrl: String?,
+            pdfTitle: String?,
+            render: RenderType,
+            saveTo: saveTo,
+            enableDownload: Boolean = true,
+            headers: Map<String, String> = emptyMap()
+        ): Intent {
+            val intent = Intent(context, PdfViewerActivity::class.java)
+            intent.putExtra(FILE_URL, pdfUrl)
+            intent.putExtra(FILE_TITLE, pdfTitle)
+            intent.putExtra(ENABLE_FILE_DOWNLOAD, enableDownload)
+            intent.putExtra("headers", HeaderData(headers))
+            renderType = render
+            isPDFFromPath = false
+            SAVE_TO_DOWNLOADS = saveTo == com.rajat.pdfviewer.util.saveTo.DOWNLOADS
+            return intent
+        }
+
         fun launchPdfFromPath(
             context: Context?,
             path: String?,
@@ -104,6 +125,25 @@ class PdfViewerActivity : AppCompatActivity() {
             intent.putExtra(FILE_TITLE, pdfTitle)
             intent.putExtra(ENABLE_FILE_DOWNLOAD, false)
             intent.putExtra(FROM_ASSETS, fromAssets)
+            isPDFFromPath = true
+            SAVE_TO_DOWNLOADS = saveTo == com.rajat.pdfviewer.util.saveTo.DOWNLOADS
+            return intent
+        }
+
+        fun launchPdfFromPath(
+            context: Context?,
+            path: String?,
+            pdfTitle: String?,
+            render: RenderType,
+            saveTo: saveTo,
+            fromAssets: Boolean = false
+        ): Intent {
+            val intent = Intent(context, PdfViewerActivity::class.java)
+            intent.putExtra(FILE_URL, path)
+            intent.putExtra(FILE_TITLE, pdfTitle)
+            intent.putExtra(ENABLE_FILE_DOWNLOAD, false)
+            intent.putExtra(FROM_ASSETS, fromAssets)
+            renderType = render
             isPDFFromPath = true
             SAVE_TO_DOWNLOADS = saveTo == com.rajat.pdfviewer.util.saveTo.DOWNLOADS
             return intent
@@ -359,6 +399,7 @@ class PdfViewerActivity : AppCompatActivity() {
         try {
             binding.pdfView.initWithUrl(
                 fileUrl!!,
+                renderType,
                 headers,
                 lifecycleScope,
                 lifecycle = lifecycle
@@ -381,7 +422,26 @@ class PdfViewerActivity : AppCompatActivity() {
             } else {
                 File(filePath)
             }
-            binding.pdfView.initWithFile(file)
+            binding.pdfView.initWithFile(RenderType.PDFRENDERER, file)
+        } catch (e: Exception) {
+            onPdfError(e.toString())
+        }
+    }
+
+    private fun initPdfViewerWithPath(renderType: RenderType, filePath: String?) {
+        if (TextUtils.isEmpty(filePath)) {
+            onPdfError("")
+            return
+        }
+        try {
+            val file = if (filePath!!.startsWith("content://")) {
+                uriToFile(applicationContext, Uri.parse(filePath))
+            } else if (isFromAssets) {
+                fileFromAsset(this, filePath)
+            } else {
+                File(filePath)
+            }
+            binding.pdfView.initWithFile(renderType, file)
         } catch (e: Exception) {
             onPdfError(e.toString())
         }

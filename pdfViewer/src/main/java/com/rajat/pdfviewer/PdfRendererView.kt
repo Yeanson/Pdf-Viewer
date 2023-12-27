@@ -87,7 +87,37 @@ class PdfRendererView @JvmOverloads constructor(
                 statusListener?.onPdfLoadProgress(progress, currentBytes, totalBytes)
             }
             override fun onDownloadSuccess(absolutePath: String) {
-                initWithFile(File(absolutePath))
+                initWithFile(RenderType.PDFRENDERER, File(absolutePath))
+                statusListener?.onPdfLoadSuccess(absolutePath)
+            }
+            override fun onError(error: Throwable) {
+                error.printStackTrace()
+                statusListener?.onError(error)
+            }
+        })
+    }
+
+    fun initWithUrl(
+        url: String,
+        renderType: RenderType,
+        headers: HeaderData = HeaderData(),
+        lifecycleCoroutineScope: LifecycleCoroutineScope,
+        lifecycle: Lifecycle
+    ) {
+        lifecycle.addObserver(this) // Register as LifecycleObserver
+        PdfDownloader(lifecycleCoroutineScope,headers,url, object : PdfDownloader.StatusListener {
+            override fun getContext(): Context = context
+            override fun onDownloadStart() {
+                statusListener?.onPdfLoadStart()
+            }
+            override fun onDownloadProgress(currentBytes: Long, totalBytes: Long) {
+                var progress = (currentBytes.toFloat() / totalBytes.toFloat() * 100F).toInt()
+                if (progress >= 100)
+                    progress = 100
+                statusListener?.onPdfLoadProgress(progress, currentBytes, totalBytes)
+            }
+            override fun onDownloadSuccess(absolutePath: String) {
+                initWithFile(renderType, File(absolutePath))
                 statusListener?.onPdfLoadSuccess(absolutePath)
             }
             override fun onError(error: Throwable) {
@@ -98,7 +128,11 @@ class PdfRendererView @JvmOverloads constructor(
     }
 
     fun initWithFile(file: File) {
-        init(file)
+        init(RenderType.PDFRENDERER, file)
+    }
+
+    fun initWithFile(renderType: RenderType, file: File) {
+        init(renderType, file)
     }
 
     override fun onSaveInstanceState(): Parcelable? {
@@ -126,8 +160,8 @@ class PdfRendererView @JvmOverloads constructor(
         }
     }
 
-    private fun init(file: File) {
-        pdfRendererCore = PdfRendererCore(context, file)
+    private fun init(renderType: RenderType, file: File) {
+        pdfRendererCore = PdfRendererCore(context, renderType, file)
         pdfRendererCoreInitialised = true
         pdfViewAdapter = PdfViewAdapter(context,pdfRendererCore, pageMargin, enableLoadingForPages)
         val v = LayoutInflater.from(context).inflate(R.layout.pdf_rendererview, this, false)
